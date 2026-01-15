@@ -41,17 +41,26 @@ async def stream_audio(ws_url, wav_path, chunk_sec, log_cb):
             while True:
                 try:
                     msg = await ws.recv()
-                    log_cb(f"[RECV] {msg}")
+                    msg = json.loads(msg)
+                    log_cb(f"[RECV] {msg["id"]}: {msg["full_text"]}")
                 except:
                     break
 
         async def sender():
+            ind = 0
             audio_id = 0
             for chunk_bytes, duration in load_audio_chunks(wav_path, chunk_sec):
+                ind += 1
+                # TEST :
+                end_stream = False
+                if ind == 14:
+                    end_stream = True
+                #
                 meta = {
                     "id": f"audio_{audio_id}",
                     "sample_rate": SAMPLE_RATE,
-                    "bytes": len(chunk_bytes)
+                    "bytes": len(chunk_bytes),
+                    "end_stream": end_stream
                 }
 
                 log_cb(f"[SEND] audio_{audio_id} ({duration:.2f}s)")
@@ -102,4 +111,5 @@ if uploaded_file:
         except RuntimeError:
             st.warning("⚠️ Async loop already running")
 
+    if st.button("🚀 End Streaming"):
         st.success("✅ Streaming finished")

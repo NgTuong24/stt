@@ -40,7 +40,6 @@ def chunk_audio(
     segments: List[Dict],
     tail_seconds: float = 0.5,
     min_sec: float = 0.2,
-    end_stream: bool = False
 ):
     chunks = []
     tail_audio = None
@@ -68,10 +67,7 @@ def chunk_audio(
     if seg_end > seg_start:
         tail_start = max(0, seg_start - tail_samples)
         tail_audio = audio[tail_start:seg_end]
-    
-    if end_stream:
-        chunks.append(tail_audio)
-        tail_audio = None
+
     return chunks, tail_audio
 
 
@@ -196,7 +192,7 @@ class ASRPipeline:
             print("Error initializing Azure ASR:", e)
             return None
         
-    def __call__(self, audio: np.ndarray, end_stream: bool=False) -> Dict:
+    def __call__(self, audio: np.ndarray) -> Dict:
         time_str = time.time()
         if self.tail_audio is not None:
             audio = np.concatenate([self.tail_audio, audio])
@@ -207,7 +203,7 @@ class ASRPipeline:
             segments = [{"start": 0, "end": len(audio) / SAMPLE_RATE}]
         
         
-        chunks, self.tail_audio = chunk_audio(audio, SAMPLE_RATE, segments, end_stream=end_stream)
+        chunks, self.tail_audio = chunk_audio(audio, SAMPLE_RATE, segments)
         
         results = []        
         time_str = time.time()  

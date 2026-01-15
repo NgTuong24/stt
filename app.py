@@ -58,6 +58,7 @@ async def bot_stt(
             meta = json.loads(meta_msg)
 
             audio_id = meta.get("id")
+            end_stream = meta.get("end_stream")
             if not audio_id:
                 await websocket.send_json({"error": "missing id"})
                 continue
@@ -68,7 +69,7 @@ async def bot_stt(
                 await websocket.send_json({
                     "id": audio_id,
                     "full_text": ""
-                })
+                }) 
                 continue
             
             audio = bytes2audio(
@@ -78,7 +79,7 @@ async def bot_stt(
                 ),
             )
 
-            transcription = pipeline(audio)
+            transcription = pipeline(audio, end_stream=end_stream)
 
             await websocket.send_json({
                 "id": audio_id,

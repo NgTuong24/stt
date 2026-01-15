@@ -30,21 +30,6 @@ def load_wav_chunks(path: str, chunk_sec: int):
         yield chunk.tobytes()
 
 
-# async def sender(ws):
-#     audio_id = 0
-
-#     for chunk_bytes in load_wav_chunks(WAV_PATH, CHUNK_SEC):
-#         meta = {
-#             "id": f"audio_{audio_id}",
-#         }
-
-#         print(f"[SEND] audio_{audio_id}")
-#         await ws.send(json.dumps(meta))
-#         await ws.send(chunk_bytes)
-
-#         audio_id += 1
-#         await asyncio.sleep(CHUNK_SEC)  
-
 async def sender(ws):
     audio_id = 0
 
@@ -71,7 +56,8 @@ async def receiver(ws):
     while True:
         try:
             msg = await ws.recv()
-            print("[RECV]", msg)
+            msg = json.loads(msg)
+            print("[RECV]", f"{msg["id"]}: {msg["full_text"]}")
         except websockets.ConnectionClosed:
             break
 
