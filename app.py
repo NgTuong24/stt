@@ -2,15 +2,12 @@ import io
 import json
 import traceback
 import logging
-from typing import Optional
-
+from typing import Optional, List, Dict
 import numpy as np
 import soundfile as sf
 import librosa
-
-from fastapi import FastAPI, WebSocket, Depends
+from fastapi import FastAPI, WebSocket, Depends, status
 from pydantic import BaseModel
-
 from core.stt import ASRPipeline
 
 
@@ -20,6 +17,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("stt")
 
 app = FastAPI()
+pipeline = ASRPipeline()
+results_storage: Dict[str, Dict] = {}
 
 
 def bytes2audio(buffer: bytes, **kwargs):
@@ -37,13 +36,7 @@ class ASRAudioInput(BaseModel):
     min_clusters: Optional[int] = 1
     max_clusters: Optional[int] = 5
         
-        
-pipeline = ASRPipeline()
 
-
-# =====================
-# WebSocket endpoint
-# =====================
 @app.websocket("/bot/stt")
 async def bot_stt(
     websocket: WebSocket,
@@ -80,6 +73,7 @@ async def bot_stt(
             )
 
             transcription = pipeline(audio, end_stream=end_stream)
+            results_storage[audio_id] = transcription
 
             await websocket.send_json({
                 "id": audio_id,
@@ -88,6 +82,28 @@ async def bot_stt(
 
     except Exception:
         logger.info(f"WebSocket closed:\n{traceback.format_exc()}")
+
+
+@app.post("/reset", status_code=status.HTTP_200_OK)
+async def reset_results():
+    global results_storage
+    results_storage.clear()
+    logger.info("All results have been reset")
+
+    return {
+        "status": "ok",
+        "message": "All results have been reset"
+    }
+
+
+@app.post("/results")
+async def get_results():
+    """Get all stored results"""
+    print("gdf")
+    logger.info(f"Retrieved {len(results_storage)} results")
+    return {
+        "results": results_storage
+    }
 
 
 # uvicorn app:app --reload --port 8000

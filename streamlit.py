@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import asyncio
 import json
@@ -6,15 +5,14 @@ import librosa
 import numpy as np
 import websockets
 import tempfile
-import time
+import requests
 
 # ================= CONFIG =================
 WS_URL = "ws://localhost:8000/bot/stt"
 SAMPLE_RATE = 16000
+API_BASE_URL = "http://localhost:8000"
 # =========================================
 
-
-# ================= AUDIO UTILS =================
 def load_audio_chunks(path, chunk_sec):
     audio, sr = librosa.load(path, sr=SAMPLE_RATE, mono=True)
     chunk_samples = int(chunk_sec * SAMPLE_RATE)
@@ -37,14 +35,14 @@ async def stream_audio(ws_url, wav_path, chunk_sec, log_cb):
         max_size=50 * 1024 * 1024
     ) as ws:
 
-        async def receiver():
-            while True:
-                try:
-                    msg = await ws.recv()
-                    msg = json.loads(msg)
-                    log_cb(f"[RECV] {msg["id"]}: {msg["full_text"]}")
-                except:
-                    break
+        # async def receiver():
+        #     while True:
+        #         try:
+        #             msg = await ws.recv()
+        #             msg = json.loads(msg)
+        #             log_cb(f"[RECV] {msg["id"]}: {msg["full_text"]}")
+        #         except:
+        #             break
 
         async def sender():
             ind = 0
@@ -68,9 +66,9 @@ async def stream_audio(ws_url, wav_path, chunk_sec, log_cb):
                 await ws.send(chunk_bytes)
 
                 audio_id += 1
-                await asyncio.sleep(duration)
+                # await asyncio.sleep(duration)
 
-        await asyncio.gather(sender(), receiver())
+        await asyncio.gather(sender())
 
 
 # ================= STREAMLIT UI =================
@@ -100,6 +98,22 @@ if uploaded_file:
             logs.append(msg)
             log_box.text("\n".join(logs[-20:]))
 
+        # Reset results before streaming
+        try:
+            reset_response = requests.post(f"{API_BASE_URL}/reset")
+            
+            if reset_response.ok:
+                print(reset_response.json()["message"])
+            else:
+                print("Reset failed:", reset_response.status_code)
+                
+            if reset_response.status_code == 200:
+                log_cb("✅ Results cleared")
+            else:
+                log_cb(f"⚠️ Reset failed: {reset_response.status_code}")
+        except Exception as e:
+            log_cb(f"❌ Reset error: {str(e)}")
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
             f.write(uploaded_file.getvalue())
             wav_path = f.name
@@ -112,4 +126,6 @@ if uploaded_file:
             st.warning("⚠️ Async loop already running")
 
     if st.button("🚀 End Streaming"):
+        reset_response = requests.post(f"{API_BASE_URL}/results")
+        st.text(reset_response.json())
         st.success("✅ Streaming finished")

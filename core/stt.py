@@ -2,7 +2,6 @@ import os
 import time
 import torch
 import numpy as np
-import librosa
 from typing import List, Dict
 import azure.cognitiveservices.speech as speechsdk
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -28,18 +27,11 @@ def get_device():
         return f"cuda"
     return DEVICE
 
-
-def load_audio_by_file(path: str, sr=SAMPLE_RATE) -> np.ndarray:
-    audio, _ = librosa.load(path, sr=sr, mono=True)
-    return audio
-
-
 def chunk_audio(
     audio: np.ndarray,
     sr: int,
     segments: List[Dict],
     tail_seconds: float = 0.5,
-    min_sec: float = 0.2,
     end_stream: bool = False
 ):
     chunks = []
@@ -47,20 +39,15 @@ def chunk_audio(
 
     if not segments:
         return chunks, None
-
-    min_samples = int(min_sec * sr)
+    
     tail_samples = int(tail_seconds * sr)
 
-    # 1️⃣ các segment đã kết thúc → gửi ASR
     if len(segments) > 1:
         for seg in segments[:-1]:
             start = int(seg["start"] * sr)
             end = int(seg["end"] * sr)
-
-            # if end - start >= min_samples:
             chunks.append(audio[start:end])
 
-    # 2️⃣ segment cuối → giữ lại (KHÔNG transcribe)
     last_seg = segments[-1]
     seg_start = int(last_seg["start"] * sr)
     seg_end = int(last_seg["end"] * sr)
@@ -73,23 +60,6 @@ def chunk_audio(
         chunks.append(tail_audio)
         tail_audio = None
     return chunks, tail_audio
-
-
-def split_vad_duration(segments: List[Dict], chunk_size: int = VAD_CHUNK_SIZE) -> List[np.ndarray]:
-    chunks = []
-    for seg in segments:
-        start = seg["start"]
-        end = seg["end"]
-        duration = end - start
-        if duration > chunk_size:
-            num_chunks = int(np.ceil(duration / chunk_size))
-            for i in range(num_chunks):
-                chunk_start = start + i * chunk_size
-                chunk_end = min(start + (i + 1) * chunk_size, end)
-                chunks.append({'start': chunk_start, 'end': chunk_end})
-        else:
-            chunks.append({'start': start, 'end': end})
-    return chunks
 
 
 class SileroVAD:
@@ -216,10 +186,6 @@ class ASRPipeline:
             if len(chunk) < SAMPLE_RATE:
                 continue
             text = texts[i]
-            print(f"segment_id{i}: {text}")
-            # timer = time.time()
-            # text = self.stt_model.transcribe(chunk)
-            # print(f"  - Segment {i}: {time.time() - timer:.2f}s {text}")
             results.append({
                 "segment_id": i,
                 "start": segments[i]["start"],
